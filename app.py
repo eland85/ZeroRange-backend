@@ -269,12 +269,13 @@ def index():
     """
 
 if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
     print("🔒 Starting Secure Exhibition Backend...")
     print("📋 Setup Instructions:")
     print("1. Edit this file: Replace 'YOUR_API_KEY_HERE' with your real Google API key")
     print("2. Install dependencies: pip install flask flask-cors requests")
     print("3. Your API key will be secure on the server")
-    print("4. Frontend connects to http://localhost:5000/api/...")
-    print("\n🚀 Server starting on http://localhost:5000")
+    print("4. Frontend connects to Railway URL")
+    print(f"\n🚀 Server starting on port {port}")
     
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    app.run(host='0.0.0.0', port=port, debug=False)
