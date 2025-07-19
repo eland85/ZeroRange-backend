@@ -12,8 +12,11 @@ from datetime import datetime
 app = Flask(__name__)
 CORS(app)
 
-# Store API key securely on server (not in client code!)
+# Store configuration securely on server (not in client code!)
 GOOGLE_API_KEY = os.environ.get('GOOGLE_API_KEY', 'YOUR_API_KEY_HERE')
+FOLDER_ID = os.environ.get('FOLDER_ID', 'YOUR_FOLDER_ID_HERE')
+SHEETS_ID = os.environ.get('SHEETS_ID', 'YOUR_SHEETS_ID_HERE')
+
 CACHE_DURATION = 30  # Cache results for 30 seconds
 
 # Cache to avoid hitting API limits
@@ -107,6 +110,27 @@ def get_drive_files(folder_id):
         print(f"❌ Unexpected error: {e}")
         return None
 
+# NEW: Route to get configuration from server
+@app.route('/api/config')
+def get_config():
+    """Get configuration values from server environment"""
+    return jsonify({
+        'folder_id': FOLDER_ID,
+        'sheets_id': SHEETS_ID,
+        'api_configured': bool(GOOGLE_API_KEY and GOOGLE_API_KEY != "YOUR_API_KEY_HERE"),
+        'folder_configured': bool(FOLDER_ID and FOLDER_ID != "YOUR_FOLDER_ID_HERE"),
+        'sheets_configured': bool(SHEETS_ID and SHEETS_ID != "YOUR_SHEETS_ID_HERE")
+    })
+
+# NEW: Route that uses server's folder ID (no parameter needed)
+@app.route('/api/discover')
+def discover_images_default():
+    """Discover images using server's configured folder ID"""
+    if not FOLDER_ID or FOLDER_ID == "YOUR_FOLDER_ID_HERE":
+        return jsonify({'error': 'Server folder ID not configured'}), 500
+    
+    return discover_images(FOLDER_ID)
+
 @app.route('/api/discover/<folder_id>')
 def discover_images(folder_id):
     """Discover images in Google Drive folder"""
@@ -166,6 +190,15 @@ def proxy_image(file_id):
     except Exception as e:
         print(f"❌ Proxy image error for {file_id}: {e}")
         return jsonify({'error': str(e)}), 500
+
+# NEW: Route that uses server's sheets ID (no parameter needed)
+@app.route('/api/sheets')
+def get_sheets_data_default():
+    """Get Google Sheets data using server's configured sheets ID"""
+    if not SHEETS_ID or SHEETS_ID == "YOUR_SHEETS_ID_HERE":
+        return jsonify({'error': 'Server sheets ID not configured'}), 500
+    
+    return get_sheets_data(SHEETS_ID)
 
 @app.route('/api/sheets/<sheet_id>')
 def get_sheets_data(sheet_id):
@@ -233,6 +266,8 @@ def get_status():
     return jsonify({
         'status': 'running',
         'api_configured': bool(GOOGLE_API_KEY and GOOGLE_API_KEY != "YOUR_API_KEY_HERE"),
+        'folder_configured': bool(FOLDER_ID and FOLDER_ID != "YOUR_FOLDER_ID_HERE"),
+        'sheets_configured': bool(SHEETS_ID and SHEETS_ID != "YOUR_SHEETS_ID_HERE"),
         'cache_entries': len([k for k, v in cache.items() if v]),
         'timestamp': datetime.now().isoformat()
     })
@@ -247,22 +282,27 @@ def index():
         <h1>🔒 Secure Exhibition Backend</h1>
         <p><strong>Status:</strong> Running</p>
         <p><strong>API Key:</strong> {'✅ Configured' if GOOGLE_API_KEY != 'YOUR_API_KEY_HERE' else '❌ Not configured'}</p>
+        <p><strong>Folder ID:</strong> {'✅ Configured' if FOLDER_ID != 'YOUR_FOLDER_ID_HERE' else '❌ Not configured'}</p>
+        <p><strong>Sheets ID:</strong> {'✅ Configured' if SHEETS_ID != 'YOUR_SHEETS_ID_HERE' else '❌ Not configured'}</p>
         <p><strong>Server Time:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
         
         <h3>Available Endpoints:</h3>
         <ul>
-            <li><code>/api/discover/FOLDER_ID</code> - Discover images in folder</li>
-            <li><code>/api/sheets/SHEET_ID</code> - Get Google Sheets data</li>
+            <li><code>/api/config</code> - Get server configuration</li>
+            <li><code>/api/discover</code> - Discover images (uses server folder ID)</li>
+            <li><code>/api/discover/FOLDER_ID</code> - Discover images in specific folder</li>
+            <li><code>/api/sheets</code> - Get Google Sheets data (uses server sheets ID)</li>
+            <li><code>/api/sheets/SHEET_ID</code> - Get specific Google Sheets data</li>
             <li><code>/api/proxy-image/FILE_ID</code> - Proxy Google Drive images</li>
             <li><code>/api/status</code> - Server status</li>
         </ul>
         
         <h3>Setup Instructions:</h3>
         <ol>
-            <li>Edit this file and replace YOUR_API_KEY_HERE with your real Google API key</li>
-            <li>Run: <code>python secure_drive_server.py</code></li>
-            <li>Your HTML will connect to <code>http://localhost:5000</code></li>
-            <li>API key stays secure on server - never sent to browser!</li>
+            <li>Set environment variables: GOOGLE_API_KEY, FOLDER_ID, SHEETS_ID</li>
+            <li>Run: <code>python app.py</code></li>
+            <li>Your HTML will connect to the Railway URL</li>
+            <li>All sensitive data stays secure on server!</li>
         </ol>
     </body>
     </html>
@@ -271,11 +311,10 @@ def index():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     print("🔒 Starting Secure Exhibition Backend...")
-    print("📋 Setup Instructions:")
-    print("1. Edit this file: Replace 'YOUR_API_KEY_HERE' with your real Google API key")
-    print("2. Install dependencies: pip install flask flask-cors requests")
-    print("3. Your API key will be secure on the server")
-    print("4. Frontend connects to Railway URL")
+    print("📋 Configuration Status:")
+    print(f"   API Key: {'✅ Set' if GOOGLE_API_KEY != 'YOUR_API_KEY_HERE' else '❌ Not set'}")
+    print(f"   Folder ID: {'✅ Set' if FOLDER_ID != 'YOUR_FOLDER_ID_HERE' else '❌ Not set'}")
+    print(f"   Sheets ID: {'✅ Set' if SHEETS_ID != 'YOUR_SHEETS_ID_HERE' else '❌ Not set'}")
     print(f"\n🚀 Server starting on port {port}")
     
     app.run(host='0.0.0.0', port=port, debug=False)
